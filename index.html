@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Yacht · Puzzle 74</title>
+    <meta name="description" content="A drafting board and contradiction checker for puzzle 74, The Yacht." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%235b3f8c'/%3E%3Ccircle cx='28' cy='28' r='14' fill='none' stroke='white' stroke-width='6'/%3E%3Cpath d='M38 38l12 12' stroke='white' stroke-width='7' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/app.js"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <p class="eyebrow">Puzzle 74</p>
+      <h1>The Yacht</h1>
+      <p class="tagline">Someone went a little overboard on this cruise.</p>
+    </header>
+
+    <main class="layout">
+      <section class="board-col" aria-label="Board">
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="Tool">
+            <button type="button" data-tool="place" title="Place a person (1)"><span aria-hidden="true">●</span> Place</button>
+            <button type="button" data-tool="note" title="Pencil note (2)"><span aria-hidden="true">✎</span> Note</button>
+            <button type="button" data-tool="cross" title="Cross out a square (3)"><span aria-hidden="true">✕</span> Cross</button>
+            <button type="button" data-tool="erase" title="Erase a square (4)"><span aria-hidden="true">⌫</span> Erase</button>
+          </div>
+          <div class="actions">
+            <button type="button" id="undo" class="btn-quiet" title="Undo (Ctrl/⌘ Z)">↶ Undo</button>
+            <button type="button" id="reset" class="btn-quiet">Reset</button>
+          </div>
+        </div>
+
+        <div id="people" class="people" role="group" aria-label="People"></div>
+
+        <div class="paper">
+          <svg id="board" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Floor plan of the yacht"></svg>
+        </div>
+        <p id="cell-info" class="cell-info" aria-live="polite"></p>
+      </section>
+
+      <aside class="side-col">
+        <section class="panel check-panel" aria-labelledby="check-title">
+          <h2 id="check-title">Check your draft</h2>
+          <label class="accuse">
+            <span>The murderer is…</span>
+            <select id="murderer"></select>
+          </label>
+          <button type="button" id="check" class="btn-primary">Check for contradictions</button>
+          <div id="summary" class="summary" aria-live="polite"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="clues-title">
+          <h2 id="clues-title">Clues</h2>
+          <ul id="clues" class="clues"></ul>
+        </section>
+
+        <details class="panel rules">
+          <summary><h2>Rules &amp; options</h2></summary>
+          <ul class="rule-list">
+            <li>Every person, the victim included, is on exactly one square.</li>
+            <li>No two people share a row or a column.</li>
+            <li>People can stand on open floor, or be on a chair, bed or carpet. Nobody can be on a square with a table, shelf, plant, TV, crate or sink.</li>
+            <li>A piece of furniture that spans several squares counts on each of them.</li>
+            <li>“Beside” means on a square that shares an edge.</li>
+            <li>The murderer is the only person alone in a room with the victim.</li>
+            <li>Row 1 is the north edge of the board, so “south” means further down the page.</li>
+          </ul>
+          <label class="opt"><input type="checkbox" id="opt-diagonal" /> Count corner-touching squares as “beside”</label>
+          <label class="opt"><input type="checkbox" id="opt-shade" /> Shade rows and columns that already hold someone</label>
+          <p class="fine">The checker only tests your draft against these rules and the clues. It doesn't solve the puzzle or give hints, and nothing it reports depends on knowing the answer.</p>
+        </details>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <p>Your draft is saved in this browser. Keys: A–H and V pick a person · 1–4 switch tools · Esc deselects · Ctrl/⌘ Z undoes.</p>
+    </footer>
+  </body>
+</html>

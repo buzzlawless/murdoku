@@ -1,0 +1,10 @@
+{
+  "name": "murdoku-yacht",
+  "private": true,
+  "type": "module",
+  "description": "Drafting board and contradiction checker for puzzle 74, The Yacht.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8000"
+  }
+}
