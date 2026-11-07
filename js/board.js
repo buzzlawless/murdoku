@@ -3,7 +3,7 @@
 import { objectName } from './rules.js';
 
 const S = 100;
-const MARGIN = { left: 52, top: 50, right: 14, bottom: 26 };
+const MARGIN = { left: 42, top: 40, right: 8, bottom: 22 };
 
 const INK = '#2f2636';
 const WALL = '#2a2230';
@@ -42,9 +42,9 @@ export function boardSvg(puzzle, grid, view) {
   </defs>`);
 
   // Axis numbers
-  out.push('<g class="axis" font-size="26" font-weight="600" text-anchor="middle" fill="#8b8091">');
-  for (let c = 1; c <= puzzle.cols; c++) out.push(`<text x="${(c - 0.5) * S}" y="-17">${c}</text>`);
-  for (let r = 1; r <= puzzle.rows; r++) out.push(`<text x="-27" y="${(r - 0.5) * S + 9}">${r}</text>`);
+  out.push('<g class="axis" font-size="28" font-weight="700" text-anchor="middle" fill="#8b8091">');
+  for (let c = 1; c <= puzzle.cols; c++) out.push(`<text x="${(c - 0.5) * S}" y="-11">${c}</text>`);
+  for (let r = 1; r <= puzzle.rows; r++) out.push(`<text x="-22" y="${(r - 0.5) * S + 10}">${r}</text>`);
   out.push('</g>');
 
   // Compass in the open water at the top right

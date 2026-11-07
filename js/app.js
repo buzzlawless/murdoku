@@ -9,24 +9,37 @@ const byId = new Map(people.map((p) => [p.id, p]));
 const cellKey = (r, c) => `${r},${c}`;
 
 const els = {
+  controls: document.getElementById('controls'),
+  paper: document.getElementById('paper'),
   board: document.getElementById('board'),
   people: document.getElementById('people'),
   info: document.getElementById('cell-info'),
+  zoom: document.getElementById('zoom'),
   clues: document.getElementById('clues'),
   summary: document.getElementById('summary'),
   murderer: document.getElementById('murderer'),
   check: document.getElementById('check'),
+  checkMini: document.getElementById('check-mini'),
   undo: document.getElementById('undo'),
-  reset: document.getElementById('reset'),
+  resets: [document.getElementById('reset'), document.getElementById('reset-2')],
   diagonal: document.getElementById('opt-diagonal'),
   shade: document.getElementById('opt-shade'),
   tools: [...document.querySelectorAll('[data-tool]')],
 };
 
+// Matches the CSS breakpoint where the controls become a bottom dock.
+const dockQuery = window.matchMedia('(max-width: 760px), (max-height: 520px) and (orientation: landscape)');
+
 // ---- State ----------------------------------------------------------------
 
 function blankState() {
-  return { placed: {}, notes: {}, crosses: {}, murderer: '', settings: { diagonal: false, shade: false } };
+  return {
+    placed: {},
+    notes: {},
+    crosses: {},
+    murderer: '',
+    settings: { diagonal: false, shade: false, zoom: false },
+  };
 }
 
 function sanitize(raw) {
@@ -53,6 +66,7 @@ function sanitize(raw) {
   if (raw.settings) {
     s.settings.diagonal = !!raw.settings.diagonal;
     s.settings.shade = !!raw.settings.shade;
+    s.settings.zoom = !!raw.settings.zoom;
   }
   return s;
 }
@@ -82,7 +96,8 @@ const ui = {
   report: null,
   stale: false,
   focus: new Set(),
-  notice: '',
+  // { text, status?, details? } shown in the info line until the next action
+  notice: null,
 };
 
 function commit(mutate) {
@@ -102,6 +117,7 @@ function afterChange() {
 function undo() {
   const prev = history.pop();
   if (!prev) return;
+  ui.notice = null;
   state = sanitize(JSON.parse(prev));
   afterChange();
 }
@@ -115,9 +131,9 @@ function occupantAt(r, c) {
 
 // ---- Board interaction --------------------------------------------------------
 
-function notify(text) {
-  ui.notice = text;
-  renderInfo(null);
+function notify(text, extra = {}) {
+  ui.notice = { text, ...extra };
+  renderInfo();
 }
 
 function handleCell(r, c) {
@@ -126,7 +142,7 @@ function handleCell(r, c) {
   const k = cellKey(r, c);
   const occupant = occupantAt(r, c);
   const person = ui.person ? byId.get(ui.person) : null;
-  ui.notice = '';
+  ui.notice = null;
 
   switch (ui.tool) {
     case 'place': {
@@ -141,7 +157,7 @@ function handleCell(r, c) {
       }
       if (occupant && occupant.id === person.id) {
         commit((s) => delete s.placed[person.id]);
-        notify(`${person.name} removed from the board.`);
+        notify(`${person.name} taken off the board.`);
         return;
       }
       commit((s) => {
@@ -151,8 +167,8 @@ function handleCell(r, c) {
       });
       notify(
         occupant
-          ? `${person.name} placed at row ${r}, column ${c}. ${occupant.name} was taken off that square.`
-          : `${person.name} placed at row ${r}, column ${c}.`,
+          ? `${person.name} → row ${r}, column ${c} (${occupant.name} taken off).`
+          : `${person.name} → row ${r}, column ${c}, ${PUZZLE.rooms[cell.room].name}.`,
       );
       return;
     }
@@ -193,8 +209,10 @@ function handleCell(r, c) {
 els.board.addEventListener('click', (e) => {
   const hit = e.target.closest('.hit');
   if (!hit) return;
-  handleCell(Number(hit.dataset.r), Number(hit.dataset.c));
-  renderInfo(grid.get(Number(hit.dataset.r), Number(hit.dataset.c)), true);
+  const r = Number(hit.dataset.r);
+  const c = Number(hit.dataset.c);
+  handleCell(r, c);
+  if (!ui.notice) renderInfo(grid.get(r, c));
 });
 
 els.board.addEventListener('pointerover', (e) => {
@@ -202,37 +220,41 @@ els.board.addEventListener('pointerover', (e) => {
   const hit = e.target.closest('.hit');
   if (hit) renderInfo(grid.get(Number(hit.dataset.r), Number(hit.dataset.c)));
 });
-els.board.addEventListener('pointerleave', () => renderInfo(null));
+els.board.addEventListener('pointerleave', (e) => {
+  if (e.pointerType === 'mouse') renderInfo();
+});
 
 els.people.addEventListener('click', (e) => {
   const chip = e.target.closest('[data-person]');
   if (!chip) return;
   const id = chip.dataset.person;
   ui.person = ui.person === id ? null : id;
-  ui.notice = '';
+  ui.notice = null;
   render();
 });
 
 for (const btn of els.tools) {
   btn.addEventListener('click', () => {
     ui.tool = btn.dataset.tool;
-    ui.notice = '';
+    ui.notice = null;
     render();
   });
 }
 
 els.undo.addEventListener('click', undo);
 
-els.reset.addEventListener('click', () => {
-  if (!window.confirm('Clear every person, note and cross from the board?')) return;
-  commit((s) => {
-    s.placed = {};
-    s.notes = {};
-    s.crosses = {};
-    s.murderer = '';
+for (const btn of els.resets) {
+  btn.addEventListener('click', () => {
+    if (!window.confirm('Clear every person, note and cross from the board?')) return;
+    commit((s) => {
+      s.placed = {};
+      s.notes = {};
+      s.crosses = {};
+      s.murderer = '';
+    });
+    notify('Board cleared. Undo brings it back.');
   });
-  notify('Board cleared. Undo brings it back.');
-});
+}
 
 els.murderer.addEventListener('change', () => {
   commit((s) => {
@@ -244,23 +266,39 @@ els.diagonal.addEventListener('change', () => {
   state.settings.diagonal = els.diagonal.checked;
   afterChange();
 });
+
 els.shade.addEventListener('change', () => {
   state.settings.shade = els.shade.checked;
   saveState();
   render();
 });
 
-els.check.addEventListener('click', () => {
+els.zoom.addEventListener('click', () => {
+  state.settings.zoom = !state.settings.zoom;
+  saveState();
+  render();
+});
+
+function runCheck() {
   ui.report = evaluate(PUZZLE, state.placed, {
     diagonal: state.settings.diagonal,
     murderer: state.murderer,
   });
   ui.stale = false;
   ui.focus.clear();
+  const { summary } = ui.report;
+  ui.notice = { text: `${ICON[summary.status]} ${summary.title}`, status: summary.status, details: true };
   render();
-  if (window.matchMedia('(max-width: 979px)').matches) {
-    els.summary.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
+}
+
+els.check.addEventListener('click', runCheck);
+els.checkMini.addEventListener('click', runCheck);
+
+// "Details" in the info line jumps to the first clue that needs attention.
+els.info.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-details]')) return;
+  const target = els.clues.querySelector('.clue.status-fail') || document.getElementById('check-panel');
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 els.clues.addEventListener('click', (e) => {
@@ -270,6 +308,18 @@ els.clues.addEventListener('click', (e) => {
   const same = ids.length === ui.focus.size && ids.every((id) => ui.focus.has(id));
   ui.focus = same ? new Set() : new Set(ids);
   render();
+  // On a phone the board is out of view by now: bring it back so the
+  // highlighted people can be seen.
+  if (ui.focus.size && dockQuery.matches) {
+    els.paper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+
+els.clues.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-people][role="button"]')) {
+    e.preventDefault();
+    e.target.click();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -283,15 +333,25 @@ document.addEventListener('keydown', (e) => {
   const upper = e.key.toUpperCase();
   if (byId.has(upper)) {
     ui.person = upper;
+    ui.notice = null;
     render();
   } else if (['1', '2', '3', '4'].includes(e.key)) {
     ui.tool = ['place', 'note', 'cross', 'erase'][Number(e.key) - 1];
+    ui.notice = null;
     render();
   } else if (e.key === 'Escape') {
     ui.person = null;
     render();
   }
 });
+
+// Keep page content clear of the bottom dock on phones.
+function syncDockSpace() {
+  const h = dockQuery.matches ? Math.ceil(els.controls.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty('--dock-h', `${h}px`);
+}
+if ('ResizeObserver' in window) new ResizeObserver(syncDockSpace).observe(els.controls);
+dockQuery.addEventListener('change', syncDockSpace);
 
 // ---- Rendering ----------------------------------------------------------------
 
@@ -302,41 +362,47 @@ const esc = (s) =>
   String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 
 function describeCell(cell) {
-  const parts = [`Row ${cell.r} · Column ${cell.c}`, PUZZLE.rooms[cell.room].name];
+  const parts = [`Row ${cell.r} · Col ${cell.c}`, PUZZLE.rooms[cell.room].name];
   if (!cell.object) parts.push('open floor');
   else if (cell.free) parts.push(`on a ${objectName(cell.object)}`);
-  else parts.push(`${objectName(cell.object)}, nobody can be here`);
+  else parts.push(`${objectName(cell.object)} (blocked)`);
   const occupant = occupantAt(cell.r, cell.c);
   if (occupant) parts.push(`${occupant.name} is here`);
   return parts.join(' · ');
 }
 
-function renderInfo(cell, keepNotice = false) {
-  if (cell && !(keepNotice && ui.notice)) {
-    ui.notice = '';
-    els.info.textContent = describeCell(cell);
-    els.info.classList.remove('is-notice');
-    return;
-  }
-  if (ui.notice) {
-    els.info.textContent = ui.notice;
-    els.info.classList.add('is-notice');
-    return;
-  }
+function toolHint() {
   const person = ui.person ? byId.get(ui.person) : null;
-  const tool = {
-    place: person ? `Tap a square to place ${person.name}. Tap ${person.name} again to remove.` : 'Pick a person, then tap a square.',
-    note: person ? `Tap squares to pencil in or remove ${person.name}.` : 'Pick a person to pencil in.',
-    cross: 'Tap a square to cross it out, or tap again to clear it.',
-    erase: 'Tap a square to clear its person, notes and cross.',
+  const who = person ? `<strong style="color:${person.color}">${esc(person.name)}</strong>` : '';
+  return {
+    place: person ? `Tap a square to place ${who}. Tap again to remove.` : 'Pick a person, then tap a square.',
+    note: person ? `Tap squares to pencil in ${who}.` : 'Pick a person to pencil in.',
+    cross: 'Tap a square to cross it out. Tap again to clear it.',
+    erase: 'Tap a square to clear it.',
   }[ui.tool];
-  els.info.textContent = tool;
-  els.info.classList.remove('is-notice');
+}
+
+function renderInfo(cell = null) {
+  els.info.className = 'cell-info';
+  if (cell) {
+    els.info.textContent = describeCell(cell);
+    return;
+  }
+  const n = ui.notice;
+  if (n) {
+    els.info.classList.add('is-notice');
+    if (n.status) els.info.classList.add(`status-${n.status}`);
+    els.info.innerHTML = `<span>${esc(n.text)}</span>${n.details ? ' <button type="button" class="details-link" data-details>Details ↓</button>' : ''}`;
+    return;
+  }
+  els.info.innerHTML = toolHint();
 }
 
 function renderTools() {
   for (const btn of els.tools) btn.setAttribute('aria-pressed', String(btn.dataset.tool === ui.tool));
   els.undo.disabled = history.length === 0;
+  els.zoom.setAttribute('aria-pressed', String(state.settings.zoom));
+  els.paper.classList.toggle('is-zoomed', state.settings.zoom);
 }
 
 function renderPeople() {
@@ -344,12 +410,13 @@ function renderPeople() {
     .map((p) => {
       const pos = state.placed[p.id];
       const selected = ui.person === p.id;
+      const where = pos ? `row ${pos.r}, column ${pos.c}` : 'not placed';
       return `<button type="button" class="chip${selected ? ' is-selected' : ''}${p.victim ? ' is-victim' : ''}${pos ? ' is-placed' : ''}"
         data-person="${p.id}" aria-pressed="${selected}" style="--c:${p.color}"
-        title="${esc(p.name)}${p.victim ? ' (victim)' : ''}">
-        <span class="chip-av">${p.id}</span>
-        <span class="chip-name">${esc(p.name)}</span>
-        <span class="chip-pos">${pos ? `R${pos.r} C${pos.c}` : p.victim ? 'victim' : 'not placed'}</span>
+        aria-label="${esc(p.name)}${p.victim ? ' (victim)' : ''}, ${where}">
+        <span class="chip-av" aria-hidden="true">${p.id}</span>
+        <span class="chip-name" aria-hidden="true">${esc(p.name)}</span>
+        <span class="chip-pos" aria-hidden="true">${pos ? `R${pos.r} C${pos.c}` : p.victim ? 'victim' : 'not placed'}</span>
       </button>`;
     })
     .join('');
@@ -395,9 +462,10 @@ function avatar(personId) {
   return `<span class="av" style="--c:${p.color}" aria-hidden="true">${p.id}</span>`;
 }
 
+const skeleton = evaluate(PUZZLE, {}, {});
+
 function renderClues() {
   const report = ui.report;
-  const skeleton = evaluate(PUZZLE, {}, {});
   const source = report || skeleton;
   const groups = source.groups.filter((g) => g.section !== 'accusation');
   const showStatus = Boolean(report);
@@ -435,7 +503,14 @@ function renderClues() {
 
   const accusation = report ? report.groups.find((g) => g.section === 'accusation') : null;
   const accusationHtml = accusation
-    ? card({ ...accusation, title: 'Accusation', text: state.murderer ? `You named ${byId.get(state.murderer).name}.` : 'Nobody named yet.' }, 'is-accusation')
+    ? card(
+        {
+          ...accusation,
+          title: 'Accusation',
+          text: state.murderer ? `You named ${byId.get(state.murderer).name}.` : 'Nobody named yet.',
+        },
+        'is-accusation',
+      )
     : '';
 
   els.clues.innerHTML =
@@ -449,14 +524,16 @@ function renderMurderer() {
   const suspects = people.filter((p) => !p.victim);
   els.murderer.innerHTML =
     `<option value="">Choose a suspect</option>` +
-    suspects.map((p) => `<option value="${p.id}"${state.murderer === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+    suspects
+      .map((p) => `<option value="${p.id}"${state.murderer === p.id ? ' selected' : ''}>${esc(p.name)}</option>`)
+      .join('');
 }
 
 function render() {
   renderTools();
   renderPeople();
   renderBoard();
-  renderInfo(null);
+  renderInfo();
   renderSummary();
   renderClues();
   renderMurderer();
@@ -464,11 +541,5 @@ function render() {
   els.shade.checked = state.settings.shade;
 }
 
-els.clues.addEventListener('keydown', (e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-people][role="button"]')) {
-    e.preventDefault();
-    e.target.click();
-  }
-});
-
 render();
+syncDockSpace();

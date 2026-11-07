@@ -15,6 +15,8 @@ The checker never solves the puzzle and holds no stored answer. It only tests th
   - Count corner-touching squares as "beside". Off by default, so "beside" means sharing an edge.
   - Shade rows and columns that already hold someone.
 
+On a phone, the tools, people and a **Check** button sit in a dock at the bottom of the screen, or on the right when the phone is sideways. The **⤢** button zooms the board so the squares are easier to tap; swipe sideways to pan. After a check, **Details ↓** jumps to the first clue with a problem, and tapping a reason brings you back to the board with those people highlighted.
+
 Keyboard shortcuts: A–H and V pick a person, 1–4 switch tools, Esc deselects, Ctrl/⌘ Z undoes.
 
 Your draft is saved in the browser's local storage.
